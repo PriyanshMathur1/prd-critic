@@ -1,0 +1,572 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRD Critic</title>
+<meta name="description" content="Paste a PRD. Get a scored critique with the exact sentence that earned or lost each point, then a rewrite of the weakest section.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@500;700&family=Public+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #FAF8F4;
+    --panel: #FFFFFF;
+    --ink: #1C1B18;
+    --muted: #6B6862;
+    --line: #DAD6CC;
+    --line-soft: #ECE9E1;
+    --accent: #8A3B12;
+    --accent-ink: #FAF8F4;
+    --r: 4px;
+    --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px;
+    --display: 'Schibsted Grotesk', system-ui, -apple-system, sans-serif;
+    --body: 'Public Sans', system-ui, -apple-system, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--bg); color: var(--ink); }
+  body { margin: 0; font-family: var(--body); font-size: 15px; line-height: 1.5; }
+  a { color: var(--accent); }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: var(--s6) var(--s5) var(--s7); }
+  header { display: flex; flex-wrap: wrap; gap: var(--s4); justify-content: space-between; align-items: flex-end; padding-bottom: var(--s5); border-bottom: 1px solid var(--line); }
+  h1 { font-family: var(--display); font-weight: 700; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 var(--s1); }
+  .lede { color: var(--muted); margin: 0; max-width: 560px; }
+  .examples { display: flex; gap: var(--s2); align-items: center; color: var(--muted); font-size: 14px; }
+  button, .btn { font: inherit; font-size: 14px; font-weight: 500; padding: 9px 14px; border-radius: var(--r); border: 1px solid var(--line); background: var(--panel); color: var(--ink); cursor: pointer; }
+  button:hover { border-color: var(--ink); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  button.primary:hover { background: #6F2F0E; }
+  button:disabled { opacity: 0.5; cursor: default; }
+  button:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  main { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s6); padding-top: var(--s5); }
+  .col-h { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: var(--s3); }
+  .col-h h2 { font-family: var(--display); font-size: 16px; font-weight: 700; margin: 0; }
+  .col-h .meta { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+  textarea { width: 100%; min-height: 560px; resize: vertical; padding: var(--s4); border: 1px solid var(--line); border-radius: var(--r); background: var(--panel); font: 14px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink); }
+  .actions { display: flex; flex-wrap: wrap; gap: var(--s2); margin-top: var(--s3); }
+  .score-head { display: grid; grid-template-columns: auto 1fr; gap: var(--s4); align-items: center; padding: var(--s4); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); }
+  .total { font-family: var(--display); font-size: 44px; font-weight: 700; letter-spacing: -0.03em; line-height: 1; font-variant-numeric: tabular-nums; }
+  .total small { font-size: 16px; color: var(--muted); font-weight: 500; letter-spacing: 0; }
+  .grade { font-weight: 600; }
+  .summary { color: var(--muted); font-size: 14px; margin-top: 2px; }
+  .dims { list-style: none; margin: var(--s4) 0 0; padding: 0; border-top: 1px solid var(--line); }
+  .dim { display: grid; grid-template-columns: 150px 60px 1fr; gap: var(--s3); padding: var(--s3) 0; border-bottom: 1px solid var(--line-soft); align-items: start; }
+  .dim .name { font-weight: 600; }
+  .dim .ask { display: block; font-size: 12px; color: var(--muted); font-weight: 400; margin-top: 2px; }
+  .pips { display: flex; gap: 3px; padding-top: 6px; }
+  .pip { width: 14px; height: 8px; background: var(--line-soft); border-radius: 2px; }
+  .pip.on { background: var(--accent); }
+  .evidence { font-size: 14px; }
+  .evidence q { quotes: '"' '"'; }
+  .weak .name { color: var(--accent); }
+  .empty { padding: var(--s6) var(--s4); border: 1px dashed var(--line); border-radius: var(--r); color: var(--muted); }
+  .empty p { margin: 0 0 var(--s2); }
+  .claude { margin-top: var(--s5); }
+  .claude .box { margin-top: var(--s3); padding: var(--s4); background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); min-height: 80px; font-size: 14px; }
+  .claude .box h3 { font-family: var(--display); font-size: 15px; margin: var(--s4) 0 var(--s2); }
+  .claude .box h3:first-child { margin-top: 0; }
+  .claude .box ul, .claude .box ol { padding-left: 20px; margin: 0 0 var(--s2); }
+  .claude .box li { margin: 0 0 var(--s1); }
+  .claude .box p { margin: 0 0 var(--s2); }
+  .claude .box blockquote { margin: 0 0 var(--s2); padding-left: var(--s3); border-left: 2px solid var(--accent); color: var(--ink); }
+  .note { font-size: 13px; color: var(--muted); margin: var(--s2) 0 0; }
+  footer { margin-top: var(--s7); padding-top: var(--s4); border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
+  .toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); background: var(--ink); color: var(--bg); padding: 10px 14px; border-radius: var(--r); font-size: 14px; opacity: 0; transition: opacity 160ms; pointer-events: none; }
+  .toast.show { opacity: 1; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; }
+    textarea { min-height: 320px; }
+    .dim { grid-template-columns: 1fr; gap: var(--s1); }
+    .pips { padding-top: 0; }
+  }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>PRD Critic</h1>
+      <p class="lede">Paste a PRD. Get a score out of 24 with the exact sentence that earned or lost each point, then a rewrite of the weakest section.</p>
+    </div>
+    <div class="examples">
+      <span>Try it on</span>
+      <button type="button" id="ex-weak">a weak PRD</button>
+      <button type="button" id="ex-strong">a strong one</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="col-h"><h2>Your PRD</h2><span class="meta" id="count">0 words</span></div>
+      <textarea id="prd" spellcheck="false" placeholder="Paste the whole document. Markdown headings help, but plain text with section titles works too. Nothing leaves your browser unless you ask Claude for a rewrite."></textarea>
+      <div class="actions">
+        <button type="button" class="primary" id="run">Score it</button>
+        <button type="button" id="clear">Clear</button>
+      </div>
+    </section>
+
+    <section>
+      <div class="col-h"><h2>Critique</h2><span class="meta" id="sections"></span></div>
+      <div id="out">
+        <div class="empty">
+          <p>Eight dimensions, three points each: problem, target user, success metric, non-goals, scope, risks, rollout, clarity.</p>
+          <p>The number is not the point. Read the evidence column: it quotes your own sentence back at you.</p>
+        </div>
+      </div>
+      <div class="actions" id="export-actions" hidden>
+        <button type="button" id="copy">Copy critique as Markdown</button>
+      </div>
+      <div class="claude" id="claude" hidden>
+        <button type="button" class="primary" id="ask">Ask Claude to rewrite the weakest section</button>
+        <p class="note" id="claude-note">Sends your PRD and this scorecard to Claude. Takes 10 to 40 seconds.</p>
+        <div class="box" id="claude-out" hidden></div>
+      </div>
+    </section>
+  </main>
+
+  <footer>Built by Priyansh Mathur. The scorer is deterministic and runs in your browser; Claude is optional and only used when you click the button. <a href="https://priyanshmathur.com">priyanshmathur.com</a></footer>
+</div>
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script type="text/plain" id="ex-weak-src">
+# Smart Goals Feature
+
+## Overview
+We want to leverage AI to build a seamless, delightful goal-setting experience that empowers our users to plan for the future. This is a robust feature that will unlock significant engagement and elevate the app to best-in-class.
+
+## Users
+All users of the app will benefit from this. Anyone who wants to save money can use it.
+
+## Features
+- Users can create goals
+- AI suggestions
+- Notifications and reminders etc
+- Sharing with family, and more
+
+## Success
+We expect engagement to go up and more users to sign up. Downloads should increase as well.
+
+## Timeline
+TBD. Ideally we ship this soon, as needed by the business.
+</script>
+<script type="text/plain" id="ex-strong-src">
+# Portfolio tracker inside partner news apps
+
+## Problem
+Salaried investors aged 25 to 45 check their mutual fund portfolio 3 to 4 times a week, but 62% of them do it across two or more apps. They abandon our onboarding at the "link your holdings" step because it asks for a CAS PDF they do not have handy. Paid installs cost ₹410 each and 71% of those users never link a portfolio. Organic sessions are at 10K a month.
+
+## Target user
+Salaried, urban, 25 to 45, holds 3 to 8 mutual funds bought through Groww or Zerodha, reads Moneycontrol or Livemint on the commute. When they open a news app they want to know "am I up or down today" without opening a second app.
+
+## Success metric
+Organic sessions from partner surfaces: from 10K a month today to 100K a month within 12 months. Portfolio-link completion rate: from 29% to 55%. Cost per qualified lead at least 50% below paid, measured monthly.
+
+## Non-goals
+- We will not build a news product or editorial content.
+- We will not support direct equity holdings in v1; mutual funds only.
+- We will not run paid placements inside partner apps.
+- No transactions inside the partner surface; buy and redeem stay in our app.
+
+## Scope
+Must:
+- Embeddable tracker widget that renders inside a partner webview within 800 ms on a mid-range Android device.
+- Link holdings via CAS email consent, no PDF upload.
+- Daily "up or down" summary card.
+Should:
+- Deep link into our app for redemption.
+Later:
+- Direct equity, NPS.
+
+## Risks and assumptions
+- Assumption: partners will accept a third-party widget. We will know within 3 weeks of outreach; if two of three decline, we pivot to a content partnership.
+- Risk: CAS consent flow fails on partner webviews. Mitigation: fallback to SMS OTP link, monitored via a completion-rate guardrail below 40%.
+- Risk: SEBI advertising code applies to the summary card copy. Compliance reviews all copy before launch.
+
+## Rollout
+Phase 1 (weeks 1 to 4): internal dogfood behind a feature flag, 50 employees. Owner: Priyansh (PM), Rahul (eng lead).
+Phase 2 (weeks 5 to 8): 5% of Moneycontrol app traffic, kill switch if crash rate exceeds 0.5%.
+Phase 3 (Q2): all three partners.
+</script>
+
+<script>
+/* critic.js start */
+// PRD Critic: deterministic scoring of a product requirements document.
+// Pure functions, no dependencies. index.html inlines a copy; keep them in sync (node scripts/sync.js).
+//
+// Eight dimensions, each 0..3 with evidence. The point is not the number; it is the
+// evidence line, which quotes the sentence that earned or lost the points.
+
+const DIMENSIONS = [
+  { id: "problem", name: "Problem", ask: "Who is stuck, doing what, and why it matters." },
+  { id: "user", name: "Target user", ask: "A specific segment, not 'users'." },
+  { id: "metric", name: "Success metric", ask: "A number with a baseline and a target." },
+  { id: "nongoals", name: "Non-goals", ask: "What this explicitly will not do." },
+  { id: "scope", name: "Scope", ask: "Requirements ranked: must, should, later." },
+  { id: "risks", name: "Risks and assumptions", ask: "What could make this wrong, and how you would know." },
+  { id: "rollout", name: "Rollout", ask: "How it ships: phases, flags, who sees it first." },
+  { id: "clarity", name: "Clarity", ask: "Short sentences, concrete words, few hedges." },
+];
+
+const BUZZWORDS = [
+  "leverage", "synergy", "seamless", "seamlessly", "robust", "best-in-class", "cutting-edge", "world-class",
+  "delight", "delightful", "empower", "revolutionary", "next-generation", "holistic", "frictionless",
+  "scalable", "innovative", "state-of-the-art", "game-changing", "unlock", "supercharge", "elevate",
+];
+
+const HEDGES = ["etc", "various", "and so on", "and more", "as needed", "if possible", "ideally", "somehow", "tbd", "to be decided", "at some point"];
+
+const HEADING = /^(#{1,6}\s+|[A-Z][A-Za-z /&-]{2,40}:?\s*$)/;
+// Tier labels inside a scope list are not sections.
+const NOT_HEADING = /^(must|should|could|won'?t|later|now|next|p[0-3]|v[0-9]|mvp|nice[- ]to[- ]have|phase\s*\d+|week\s*\d+|day\s*\d+)\b/i;
+
+function splitSections(text) {
+  const lines = text.replace(/\r/g, "").split("\n");
+  const sections = [];
+  let current = { title: "(intro)", lines: [] };
+  for (const raw of lines) {
+    const line = raw.trim();
+    const isHeading = line.length > 0 && line.length < 60 && HEADING.test(line) && !/[.]$/.test(line) && !NOT_HEADING.test(line.replace(/^#+\s*/, ""));
+    if (isHeading) {
+      if (current.lines.length || current.title !== "(intro)") sections.push(current);
+      current = { title: line.replace(/^#+\s*/, "").replace(/:$/, ""), lines: [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  sections.push(current);
+  return sections.map((s) => ({ ...s, body: s.lines.filter(Boolean).join(" ") }));
+}
+
+function sentences(text) {
+  return text
+    .replace(/\s+/g, " ")
+    .split(/(?<=[.!?])\s+(?=[A-Z0-9"“(])/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 2);
+}
+
+// Patterns are in priority order; a section needs a body to count. The document title never matches.
+function findSection(sections, patterns) {
+  const candidates = sections.filter((s, i) => s.body && !(i === 0 && s.title !== "(intro)") );
+  for (const p of patterns) {
+    const hit = candidates.find((s) => p.test(s.title));
+    if (hit) return hit;
+  }
+  return undefined;
+}
+
+function firstMatch(text, re) {
+  const m = text.match(re);
+  return m ? m[0] : null;
+}
+
+function cap(s) { return s ? s[0].toUpperCase() + s.slice(1) : s; }
+
+function clip(s, n = 140) {
+  if (!s) return "";
+  return s.length > n ? s.slice(0, n - 1) + "…" : s;
+}
+
+const NUMBER = /(\d+(?:[.,]\d+)?\s*(%|x|×|k|m|cr|lakh|crore|days?|weeks?|months?|sec|s|ms|min|hrs?|users|sessions|leads|₹|\$)|\b\d{2,}\b)/i;
+const BASELINE = /\b(from|baseline|currently|today|now at|is at)\b[^.]{0,60}?\d/i;
+const TARGET = /\b(to|target|goal|reach|hit|increase|reduce|cut|lift)\b[^.]{0,60}?\d/i;
+
+function scoreProblem(sections, full) {
+  const sec = findSection(sections, [/problem/i, /background/i, /context/i, /why/i, /opportunity/i, /overview/i, /summary/i, /intro/i]);
+  const text = sec ? sec.body : sentences(full.replace(/^#.*$/gm, "")).slice(0, 5).join(" ");
+  if (!text) return { score: 0, evidence: "No problem statement found. Start with who is stuck and what it costs them." };
+  const who = /\b(users?|customers?|founders?|investors?|merchants?|teams?|people|[A-Z][a-z]+s)\b/.test(text);
+  const pain = /\b(can't|cannot|fail|drop|abandon|confus|slow|manual|lose|churn|wait|frustrat|expensive|costs?|hours?|minutes?)\b/i.test(text);
+  const evidence = NUMBER.test(text);
+  const score = (who ? 1 : 0) + (pain ? 1 : 0) + (evidence ? 1 : 0);
+  const quote = clip(sentences(text)[0]);
+  const missing = [!who && "who is affected", !pain && "what actually goes wrong", !evidence && "a number that proves it matters"].filter(Boolean);
+  return {
+    score,
+    evidence: score === 3 ? `Good: "${quote}"` : `"${quote}" is missing ${missing.join(", ")}.`,
+  };
+}
+
+function scoreUser(sections, full) {
+  const sec = findSection(sections, [/user/i, /persona/i, /audience/i, /customer/i, /who/i]);
+  const text = sec ? sec.body : full;
+  const generic = /\b(all users|everyone|anyone|users in general|our users)\b/i.test(text);
+  const specific = /\b(\d{2}\s*(to|-|–)\s*\d{2}|first-time|tier[- ]?2|salaried|founders?|SMBs?|merchants?|students?|traders?|investors?|admins?|ops teams?|analysts?)\b/i.test(text);
+  const jtbd = /\b(when|trying to|so that|needs? to|wants? to)\b/i.test(text);
+  let score = 0;
+  if (sec) score++;
+  if (specific) score++;
+  if (jtbd && !generic) score++;
+  if (!sec && !specific) return { score: 0, evidence: "No target user. Name one segment and what they are trying to do." };
+  const quote = clip(firstMatch(text, /[^.]*\b(first-time|tier[- ]?2|salaried|founders?|SMBs?|merchants?|students?|traders?|investors?|admins?|analysts?)\b[^.]*\./i) || sentences(text)[0]);
+  return {
+    score,
+    evidence: generic ? `"${quote}" then widens to everyone. Pick one segment for v1.` : score === 3 ? `Good: "${quote}"` : `"${quote}". Add the job they are trying to do.`,
+  };
+}
+
+function scoreMetric(sections, full) {
+  const sec = findSection(sections, [/metric/i, /success/i, /kpi/i, /goal/i, /outcome/i, /measure/i]);
+  const text = sec ? sec.body : full;
+  const hasNumber = NUMBER.test(text);
+  const hasBaseline = BASELINE.test(text);
+  const hasTarget = TARGET.test(text);
+  const vanity = /\b(page ?views|impressions|downloads|signups?|sign-ups|installs|engagement|awareness)\b/i.test(text);
+  if (!sec && !hasNumber) return { score: 0, evidence: "No success metric. Say what number moves, from what, to what, by when." };
+  let score = (hasNumber ? 1 : 0) + (hasBaseline ? 1 : 0) + (hasTarget ? 1 : 0);
+  if (vanity && score > 1) score--;
+  const quote = clip(firstMatch(text, /[^.]*\d[^.]*\./) || sentences(text)[0]);
+  const notes = [!hasNumber && "no number", !hasBaseline && "no baseline", !hasTarget && "no target", vanity && "leans on a vanity metric"].filter(Boolean);
+  return { score, evidence: notes.length ? `"${quote}": ${notes.join(", ")}.` : `Good: "${quote}"` };
+}
+
+function scoreNonGoals(sections) {
+  const sec = findSection(sections, [/non[- ]?goals?/i, /out of scope/i, /not (in|doing)/i, /won'?t/i, /exclusions?/i]);
+  if (!sec) return { score: 0, evidence: "No non-goals. The fastest way to earn engineering trust is to say what you are not building." };
+  const items = sec.lines.filter((l) => l && /^[-*•\d]/.test(l));
+  const concrete = items.length || sec.body.split(/[.;]/).filter((s) => s.trim().length > 12).length;
+  const score = Math.min(3, 1 + (concrete >= 2 ? 1 : 0) + (concrete >= 3 ? 1 : 0));
+  return { score, evidence: score === 3 ? `Good: ${concrete} explicit exclusions.` : `Only ${concrete} exclusion${concrete === 1 ? "" : "s"}. List what people will assume is included and is not.` };
+}
+
+function scoreScope(sections, full) {
+  const sec = findSection(sections, [/scope/i, /requirements?/i, /features?/i, /solution/i, /what we('| a)re building/i, /functional/i]);
+  const text = sec ? sec.body + " " + sec.lines.join(" ") : full;
+  const tiered = /\b(must|should|could|p0|p1|p2|v1|later|phase ?[12]|mvp|nice[- ]to[- ]have)\b/i.test(text);
+  const bullets = (sec ? sec.lines : full.split("\n")).filter((l) => /^[-*•]|\b\d+[.)]/.test(l.trim())).length;
+  const testable = /\b(when|given|then|shall|must|can|able to|within \d|less than|at most|at least)\b/i.test(text);
+  if (!sec && bullets === 0) return { score: 0, evidence: "No scope section. List the requirements and rank them." };
+  const score = (bullets >= 3 ? 1 : 0) + (tiered ? 1 : 0) + (testable ? 1 : 0);
+  return {
+    score,
+    evidence: score === 3 ? `Good: ${bullets} ranked, testable requirements.` : cap([bullets < 3 && "fewer than 3 concrete requirements", !tiered && "not ranked (must / should / later)", !testable && "not testable (no conditions or thresholds)"].filter(Boolean).join("; ") + "."),
+  };
+}
+
+function scoreRisks(sections, full) {
+  const sec = findSection(sections, [/risks?/i, /assumptions?/i, /open questions?/i, /unknowns?/i, /dependenc/i]);
+  const text = sec ? sec.body : full;
+  const has = /\b(risk|assum|unknown|depends? on|might not|could fail|if .* then)\b/i.test(text);
+  const mitigation = /\b(mitigat|we will know|kill (it|switch)|fallback|roll ?back|monitor|guardrail|if .* we)\b/i.test(text);
+  const count = sec ? sec.lines.filter((l) => l && /^[-*•\d]/.test(l)).length : 0;
+  if (!sec && !has) return { score: 0, evidence: "No risks or assumptions. Every PRD has at least three; the ones you do not write down are the ones that ship." };
+  const score = (has ? 1 : 0) + (count >= 2 ? 1 : 0) + (mitigation ? 1 : 0);
+  return { score, evidence: score === 3 ? `Good: ${count} risks with a way to detect or mitigate.` : `${count || "Some"} risk${count === 1 ? "" : "s"} listed${mitigation ? "" : ", none say how you would know or what you would do"}.` };
+}
+
+function scoreRollout(sections, full) {
+  const sec = findSection(sections, [/rollout/i, /launch/i, /release/i, /go[- ]to[- ]market/i, /gtm/i, /timeline/i, /milestones?/i, /plan/i]);
+  const text = sec ? sec.body : full;
+  const phased = /\b(phase|beta|pilot|cohort|% of|percent of|feature flag|flag|gradual|staged|internal first|dogfood)\b/i.test(text);
+  const dated = /\b(week|sprint|q[1-4]|20\d\d|by (end of|mid)|day \d|d\+?\d)\b/i.test(text);
+  const owner = /\b(owner|dri|responsible|@\w+|eng lead|pm:|design:)\b/i.test(text);
+  if (!sec && !phased && !dated) return { score: 0, evidence: "No rollout plan. Who sees it first, behind what flag, and when do you decide to widen?" };
+  const score = (phased ? 1 : 0) + (dated ? 1 : 0) + (owner ? 1 : 0);
+  return { score, evidence: score === 3 ? "Good: phased, dated, owned." : cap([!phased && "not phased", !dated && "no dates", !owner && "no owners"].filter(Boolean).join(", ") + ".") };
+}
+
+function scoreClarity(full) {
+  const sents = sentences(full);
+  const words = full.split(/\s+/).filter(Boolean);
+  const avg = sents.length ? words.length / sents.length : 0;
+  const long = sents.filter((s) => s.split(/\s+/).length > 30);
+  const lower = full.toLowerCase();
+  const buzz = BUZZWORDS.filter((b) => new RegExp(`\\b${b.replace(/-/g, "[- ]")}\\b`, "i").test(lower));
+  const hedges = HEDGES.filter((h) => new RegExp(`\\b${h}\\b`, "i").test(lower));
+  const passive = sents.filter((s) => /\b(is|are|was|were|be|been|being)\s+\w+(ed|en)\b/.test(s)).length;
+  const passiveRatio = sents.length ? passive / sents.length : 0;
+  let score = 3;
+  if (avg > 24 || long.length > 2) score--;
+  if (buzz.length >= 2) score--;
+  if (hedges.length >= 2 || passiveRatio > 0.35) score--;
+  const notes = [
+    long.length ? `${long.length} sentence${long.length === 1 ? "" : "s"} over 30 words` : null,
+    buzz.length ? `buzzwords: ${buzz.slice(0, 4).join(", ")}` : null,
+    hedges.length ? `hedges: ${hedges.slice(0, 4).join(", ")}` : null,
+    passiveRatio > 0.35 ? `${Math.round(passiveRatio * 100)}% passive sentences` : null,
+  ].filter(Boolean);
+  return {
+    score: Math.max(0, score),
+    evidence: notes.length ? notes.join("; ") + "." : `Good: ${Math.round(avg)} words per sentence on average, no buzzwords.`,
+    stats: { sentences: sents.length, words: words.length, avgWords: +avg.toFixed(1), buzz, hedges, passiveRatio: +passiveRatio.toFixed(2), longest: clip(long[0] || "", 200) },
+  };
+}
+
+function critique(text) {
+  const full = (text || "").trim();
+  if (full.split(/\s+/).length < 40) {
+    return { total: 0, max: 24, grade: "Too short", dimensions: [], weakest: null, summary: "Paste a PRD of at least a few paragraphs." };
+  }
+  const sections = splitSections(full);
+  const results = {
+    problem: scoreProblem(sections, full),
+    user: scoreUser(sections, full),
+    metric: scoreMetric(sections, full),
+    nongoals: scoreNonGoals(sections),
+    scope: scoreScope(sections, full),
+    risks: scoreRisks(sections, full),
+    rollout: scoreRollout(sections, full),
+    clarity: scoreClarity(full),
+  };
+  const dimensions = DIMENSIONS.map((d) => ({ ...d, ...results[d.id] }));
+  const total = dimensions.reduce((a, d) => a + d.score, 0);
+  const weakest = [...dimensions].sort((a, b) => a.score - b.score || DIMENSIONS.findIndex((x) => x.id === a.id) - DIMENSIONS.findIndex((x) => x.id === b.id))[0];
+  const grade = total >= 21 ? "Decision-ready" : total >= 15 ? "Needs one more pass" : total >= 9 ? "Not ready for engineering" : "Idea, not a PRD";
+  const missing = dimensions.filter((d) => d.score === 0).map((d) => d.name.toLowerCase());
+  const summary = missing.length
+    ? `Missing entirely: ${missing.join(", ")}. Fix ${weakest.name.toLowerCase()} first.`
+    : `Nothing is missing outright. The weakest section is ${weakest.name.toLowerCase()}: ${weakest.evidence}`;
+  return { total, max: 24, grade, dimensions, weakest, summary, sections: sections.map((s) => s.title) };
+}
+
+function toMarkdown(result, title = "PRD critique") {
+  const lines = [
+    `# ${title}`,
+    ``,
+    `**Score:** ${result.total} / ${result.max} (${result.grade})`,
+    ``,
+    result.summary,
+    ``,
+    `| Dimension | Score | Evidence |`,
+    `|---|---|---|`,
+    ...result.dimensions.map((d) => `| ${d.name} | ${d.score} / 3 | ${d.evidence.replace(/\|/g, "/")} |`),
+  ];
+  return lines.join("\n");
+}
+/* critic.js end */
+</script>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const prd = $("prd"), out = $("out"), count = $("count"), sectionsEl = $("sections");
+  const exportActions = $("export-actions"), claudeWrap = $("claude"), claudeOut = $("claude-out"), askBtn = $("ask"), claudeNote = $("claude-note");
+  let last = null, lastClaude = "";
+
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const toast = (msg) => { const t = $("toast"); t.textContent = msg; t.classList.add("show"); setTimeout(() => t.classList.remove("show"), 1600); };
+
+  function updateCount() {
+    const n = prd.value.trim() ? prd.value.trim().split(/\s+/).length : 0;
+    count.textContent = `${n} word${n === 1 ? "" : "s"}`;
+  }
+
+  function render(r) {
+    if (!r.dimensions.length) {
+      out.innerHTML = `<div class="empty"><p>${esc(r.summary)}</p></div>`;
+      exportActions.hidden = true; claudeWrap.hidden = true; sectionsEl.textContent = "";
+      return;
+    }
+    sectionsEl.textContent = `${r.sections.length} section${r.sections.length === 1 ? "" : "s"} found`;
+    const rows = r.dimensions.map((d) => `
+      <li class="dim${d.id === r.weakest.id ? " weak" : ""}">
+        <div><span class="name">${esc(d.name)}</span><span class="ask">${esc(d.ask)}</span></div>
+        <div class="pips" aria-label="${d.score} of 3">${[0,1,2].map((i) => `<span class="pip${i < d.score ? " on" : ""}"></span>`).join("")}</div>
+        <div class="evidence">${esc(d.evidence)}</div>
+      </li>`).join("");
+    out.innerHTML = `
+      <div class="score-head">
+        <div class="total">${r.total}<small> / ${r.max}</small></div>
+        <div><div class="grade">${esc(r.grade)}</div><div class="summary">${esc(r.summary)}</div></div>
+      </div>
+      <ul class="dims">${rows}</ul>`;
+    exportActions.hidden = false;
+    claudeOut.hidden = true; claudeOut.innerHTML = ""; lastClaude = "";
+    askBtn.textContent = `Ask Claude to rewrite: ${r.weakest.name}`;
+  }
+
+  function run() {
+    last = critique(prd.value);
+    render(last);
+    try { history.replaceState(null, "", "#scored"); } catch (e) {}
+  }
+
+  $("run").addEventListener("click", run);
+  $("clear").addEventListener("click", () => { prd.value = ""; updateCount(); last = null; out.innerHTML = `<div class="empty"><p>Paste a PRD and click Score it.</p></div>`; exportActions.hidden = true; claudeWrap.hidden = true; sectionsEl.textContent = ""; });
+  $("ex-weak").addEventListener("click", () => { prd.value = $("ex-weak-src").textContent.trim(); updateCount(); run(); });
+  $("ex-strong").addEventListener("click", () => { prd.value = $("ex-strong-src").textContent.trim(); updateCount(); run(); });
+  prd.addEventListener("input", updateCount);
+  prd.addEventListener("keydown", (e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") run(); });
+
+  $("copy").addEventListener("click", async () => {
+    if (!last) return;
+    let md = toMarkdown(last);
+    if (lastClaude) md += "\n\n## Claude's rewrite\n\n" + lastClaude;
+    try { await navigator.clipboard.writeText(md); toast("Copied"); } catch (e) { toast("Copy failed; select the text instead"); }
+  });
+
+  // Tiny markdown renderer for Claude's reply: headings, bullets, bold, blockquotes, paragraphs.
+  function md(text) {
+    const lines = text.replace(/\r/g, "").split("\n");
+    let html = "", list = null;
+    const close = () => { if (list) { html += `</${list}>`; list = null; } };
+    const inline = (s) => esc(s).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
+    for (const raw of lines) {
+      const l = raw.trim();
+      if (!l) { close(); continue; }
+      let m;
+      if ((m = l.match(/^#{1,6}\s+(.*)/))) { close(); html += `<h3>${inline(m[1])}</h3>`; }
+      else if ((m = l.match(/^[-*]\s+(.*)/))) { if (list !== "ul") { close(); list = "ul"; html += "<ul>"; } html += `<li>${inline(m[1])}</li>`; }
+      else if ((m = l.match(/^\d+[.)]\s+(.*)/))) { if (list !== "ol") { close(); list = "ol"; html += "<ol>"; } html += `<li>${inline(m[1])}</li>`; }
+      else if ((m = l.match(/^>\s?(.*)/))) { close(); html += `<blockquote>${inline(m[1])}</blockquote>`; }
+      else { close(); html += `<p>${inline(l)}</p>`; }
+    }
+    close();
+    return html;
+  }
+
+  // Claude rewrite: only offered when the page runs somewhere that grants it.
+  (async () => {
+    if (!window.claude || typeof window.claude.use !== "function") return;
+    const sample = await window.claude.use("sample");
+    if (!sample) return;
+    claudeWrap.hidden = false;
+    let busy = false;
+    askBtn.addEventListener("click", async () => {
+      if (!last || busy) return;
+      busy = true; askBtn.disabled = true; claudeOut.hidden = false; claudeOut.innerHTML = "<p>Thinking...</p>";
+      const scorecard = toMarkdown(last, "Scorecard");
+      const prompt = [
+        "You are a senior product manager reviewing a colleague's PRD. Be direct, specific, and kind. No buzzwords. Short sentences.",
+        "Below is the PRD and a deterministic scorecard (0 to 3 per dimension with evidence). Do not restate the scorecard.",
+        "",
+        "Reply in Markdown with exactly these headings:",
+        "## Verdict",
+        "One paragraph, at most 3 sentences: is this ready for engineering, and what is the single biggest gap.",
+        `## Rewrite: ${last.weakest.name}`,
+        "Rewrite that section so it would score 3 of 3. Use only facts present in the PRD; where a fact is missing, write [FILL: what is needed] rather than inventing a number. Keep it under 180 words.",
+        "## Three fixes",
+        "A numbered list. Each item: the section, the problem in one sentence, and the replacement sentence in a blockquote.",
+        "## Questions an engineer will ask",
+        "Five questions, as a bullet list, that this PRD cannot currently answer.",
+        "",
+        "=== SCORECARD ===",
+        scorecard,
+        "",
+        "=== PRD ===",
+        prd.value.slice(0, 24000),
+      ].join("\n");
+      try {
+        const res = await sample(prompt, {
+          modelTier: "default",
+          cache: false,
+          onText: ({ text }) => { claudeOut.innerHTML = md(text); },
+        });
+        lastClaude = res.text;
+        claudeOut.innerHTML = md(res.text) + (res.truncated ? "<p><em>Reply was cut short.</em></p>" : "");
+      } catch (e) {
+        const code = e && e.code;
+        if (code === "not_granted") { claudeWrap.hidden = true; }
+        else if (code === "rate_limited") { claudeOut.innerHTML = "<p>Claude is rate limited right now. Try again in a minute.</p>"; }
+        else if (code === "cancelled") { claudeOut.innerHTML = "<p>Cancelled.</p>"; }
+        else { claudeOut.innerHTML = `<p>Could not get a rewrite (${esc(code || (e && e.message) || "unknown error")}).</p>`; }
+      } finally { busy = false; askBtn.disabled = false; }
+    });
+  })();
+
+  updateCount();
+})();
+</script>
+</body>
+</html>
